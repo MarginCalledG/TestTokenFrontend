@@ -38,10 +38,11 @@ export function Agents() {
   const mintEth = useEthQuote(agentAddr, irsAgentAbi, usdgUnits(mintPrice), pay.useEth)
 
   /** ETH: send value (quote + 3% buffer, refunded), no approval. USDG: approve then call. */
-  const payArgs = async (usdgAmount: bigint) =>
-    pay.useEth
-      ? { value: await pay.ethValue(usdgAmount), approvals: [] }
-      : { value: undefined, approvals: [{ token: usdgAddr, spender: agentAddr, amount: usdgAmount, symbol: 'USDG' }] }
+  const payArgs = async (usdgAmount: bigint) => {
+    if (pay.useEth) return { value: await pay.ethValue(usdgAmount), approvals: [] }
+    await pay.checkUsdg(usdgAmount)
+    return { value: undefined, approvals: [{ token: usdgAddr, spender: agentAddr, amount: usdgAmount, symbol: 'USDG' }] }
+  }
 
   const mint = async () => {
     let p

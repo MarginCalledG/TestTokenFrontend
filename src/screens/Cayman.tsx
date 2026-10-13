@@ -24,9 +24,9 @@ export function Cayman() {
   /** Fee in ETH (value, refunded buffer) or USDG (approval). */
   const feePay = async (fee: bigint | undefined) => {
     if (fee === undefined) return { value: undefined, approvals: [] }
-    return pay.useEth
-      ? { value: await pay.ethValue(fee), approvals: [] }
-      : { value: undefined, approvals: [{ token: addresses.usdg as Address, spender: vault, amount: fee, symbol: 'USDG' }] }
+    if (pay.useEth) return { value: await pay.ethValue(fee), approvals: [] }
+    await pay.checkUsdg(fee)
+    return { value: undefined, approvals: [{ token: addresses.usdg as Address, spender: vault, amount: fee, symbol: 'USDG' }] }
   }
   const lock = async (tier: number, raw: string, fee: bigint | undefined) => {
     const label = `Lock ${tierOf(tier)?.name}`

@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react'
 import type { Abi, Address } from 'viem'
-import { formatEther } from 'viem'
-import { useConfig, useReadContract } from 'wagmi'
+import { formatEther, formatUnits } from 'viem'
+import { useAccount, useConfig, useReadContract } from 'wagmi'
 import { readContract } from 'wagmi/actions'
-import { configured } from '../config/addresses'
+import { erc20Abi } from '../abi'
+import { addresses, configured } from '../config/addresses'
 import { DEMO } from '../config/demo'
 
 /** Slippage buffer sent on top of the quote. Everything not needed is refunded in the same tx. */
@@ -41,7 +42,30 @@ export function useEthPay(address: Address | null, abi: Abi) {
     },
     [config, address, abi],
   )
-  return { supported, useEth, payWith, setPayWith, ethValue }
+  const { address: account } = useAccount()
+  /**
+   * USDG has no revert reason the wallet can show — an underfunded fee surfaces as a bare
+   * "execution reverted". Check the balance first and say what is missing.
+   */
+  const checkUsdg = useCallback(
+    async (usdgAmount: bigint) => {
+      if (!account || !addresses.usdg) return
+      const have = (await readContract(config, {
+        address: addresses.usdg as Address,
+        abi: erc20Abi,
+        functionName: 'balanceOf',
+        args: [account],
+      })) as bigint
+      if (have >= usdgAmount) return
+      const f = (v: bigint) => Number(formatUnits(v, 6)).toFixed(2)
+      throw new Error(
+        `This costs ${f(usdgAmount)} USDG and your wallet holds ${f(have)} USDG.` +
+          (supported ? ' Switch to "Pay with ETH" or get USDG first.' : ' Get USDG first (e.g. swap ETH -> USDG on Uniswap).'),
+      )
+    },
+    [config, account, supported],
+  )
+  return { supported, useEth, payWith, setPayWith, ethValue, checkUsdg }
 }
 
 /** Live "≈ 0.0396 ETH" label for a USDG amount. */
