@@ -9,6 +9,8 @@ import { parseAbi } from 'viem'
 export const v2RouterAbi = parseAbi([
   'function factory() view returns (address)',
   'function getAmountsOut(uint256 amountIn, address[] path) view returns (uint256[] amounts)',
+  'function getAmountsIn(uint256 amountOut, address[] path) view returns (uint256[] amounts)',
+  'function swapETHForExactTokens(uint256 amountOut, address[] path, address to, uint256 deadline) payable returns (uint256[] amounts)',
   'function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline)',
   'function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline) payable',
   'function swapExactTokensForETHSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline)',

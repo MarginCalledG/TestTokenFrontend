@@ -13,7 +13,7 @@ import { addresses } from '../config/addresses'
 import { useTx } from '../hooks/useTx'
 import { TxLine } from '../components/TxLine'
 import { PayToggle } from '../components/PayToggle'
-import { useEthPay } from '../hooks/useEthPay'
+import { useEthPay, type Payment } from '../hooks/useEthPay'
 
 export function Cayman() {
   const { positions, potBalance, minLock, configured, refetch } = useLockPositions()
@@ -21,12 +21,12 @@ export function Cayman() {
   const tx = useTx(refetch)
   const vault = addresses.cayman as Address
   const pay = useEthPay(vault, caymanAbi)
-  /** Fee in ETH (value, refunded buffer) or USDG (approval). */
-  const feePay = async (fee: bigint | undefined) => {
-    if (fee === undefined) return { value: undefined, approvals: [] }
-    if (pay.useEth) return { value: await pay.ethValue(fee), approvals: [] }
-    await pay.checkUsdg(fee)
-    return { value: undefined, approvals: [{ token: addresses.usdg as Address, spender: vault, amount: fee, symbol: 'USDG' }] }
+  /** Fee in ETH or USDG. On contracts without native ETH payment, ETH first buys the missing USDG. */
+  const feePay = async (fee: bigint | undefined): Promise<Payment | false> => {
+    if (fee === undefined) return { approvals: [] }
+    const p = await pay.prepare(fee)
+    if (p.pre && !(await tx.run(p.pre.label, p.pre.call))) return false
+    return p
   }
   const lock = async (tier: number, raw: string, fee: bigint | undefined) => {
     const label = `Lock ${tierOf(tier)?.name}`
@@ -34,8 +34,9 @@ export function Cayman() {
     // The token reverts with a bare "balance", which wallets mis-translate as "not enough ETH".
     if (live !== undefined && amount > parseUnits(live.toFixed(decimals > 6 ? 6 : decimals), decimals))
       return tx.fail(label, new Error(`You only have ${num(live, 2)} HIGHER unlocked.`))
-    let f
+    let f: Payment | false
     try { f = await feePay(fee) } catch (e) { return tx.fail(label, e) }
+    if (!f) return false
     // HIGHER is a scaled-balance token: transferFrom may consume a few wei more
     // allowance than it moves, so approve 1% over rather than unlimited.
     return tx.run(
@@ -48,8 +49,9 @@ export function Cayman() {
     )
   }
   const relock = async (tier: number, name: string, fee: bigint | undefined) => {
-    let f
+    let f: Payment | false
     try { f = await feePay(fee) } catch (e) { return tx.fail(`Relock ${name}`, e) }
+    if (!f) return false
     return tx.run(
       `Relock ${name}`,
       { address: vault, abi: caymanAbi, functionName: 'relock', args: [tier], value: f.value },
@@ -81,8 +83,9 @@ export function Cayman() {
           <PayToggle supported={pay.supported} value={pay.payWith} onChange={pay.setPayWith} />
           {pay.useEth ? (
             <p className="muted">
-              The USDG fee is bought for you on Uniswap from the ETH you send; the unused ETH comes
-              back in the same transaction. You still approve HIGHER once.
+              {pay.native
+                ? 'The USDG fee is bought for you on Uniswap from the ETH you send; the unused ETH comes back in the same transaction. You still approve HIGHER once.'
+                : 'If your wallet lacks the USDG for the fee, the missing amount is first bought with ETH on Uniswap (one extra confirmation, unused ETH refunded), then the fee is paid in USDG.'}
             </p>
           ) : null}
         </Field>

@@ -31,7 +31,7 @@ export function Trade() {
     query: { enabled: !!addresses.spy },
   })
   const spyDecimals = spyDecimalsRaw === undefined ? 18 : Number(spyDecimalsRaw)
-  const assetDecimals = asset === 'ETH' ? 18 : spyDecimals
+  const assetDecimals = asset === 'USDG' ? 6 : asset === 'ETH' ? 18 : spyDecimals
 
   const inDecimals = side === 'buy' ? assetDecimals : decimals
   const outDecimals = side === 'buy' ? decimals : assetDecimals
@@ -39,21 +39,22 @@ export function Trade() {
   const outSymbol = side === 'buy' ? 'HIGHER' : asset
 
   /** USD per whole unit of each side, for the "≈ $" labels. */
-  const assetUsd = asset === 'ETH' ? prices.eth : prices.spy
+  const assetUsd = asset === 'ETH' ? prices.eth : asset === 'USDG' ? 1 : prices.spy
   const inUsd = side === 'buy' ? assetUsd : prices.higher
   const outUsd = side === 'buy' ? prices.higher : assetUsd
   const toUsd = (v: bigint | undefined, d: number, px: number | undefined) =>
     v === undefined || px === undefined ? undefined : Number(formatUnits(v, d)) * px
 
   const { data: ethBal } = useBalance({ address: account, query: { enabled: !!account, refetchInterval: 15_000 } })
-  const { data: spyBal } = useReadContract({
-    address: addresses.spy ?? undefined,
+  const assetToken = asset === 'SPY' ? addresses.spy : asset === 'USDG' ? addresses.usdg : null
+  const { data: tokenBal } = useReadContract({
+    address: assetToken ?? undefined,
     abi: erc20Abi,
     functionName: 'balanceOf',
     args: account ? [account] : undefined,
-    query: { enabled: !!addresses.spy && !!account, refetchInterval: 15_000 },
+    query: { enabled: !!assetToken && !!account, refetchInterval: 15_000 },
   })
-  const assetBalance = asset === 'ETH' ? ethBal?.value : (spyBal as bigint | undefined)
+  const assetBalance = asset === 'ETH' ? ethBal?.value : (tokenBal as bigint | undefined)
 
   let amount: bigint | undefined
   try {
@@ -131,7 +132,7 @@ export function Trade() {
 
           <label>{side === 'buy' ? 'Pay with' : 'Receive'}</label>
           <div className="btn-row" style={{ marginTop: 0, marginBottom: 10 }}>
-            {(['ETH', 'SPY'] as const).map((a) => (
+            {(['ETH', 'USDG', 'SPY'] as const).map((a) => (
               <button
                 key={a}
                 className="btn"
@@ -315,8 +316,10 @@ export function Trade() {
           lives in the token itself, which is why the router's own quote has to
           be corrected for it before you see a number. Paying with ETH routes
           ETH → USDG → SPY → HIGHER through three pools in one transaction
-          (0.3% each, no approval needed); selling for ETH is the same route
-          backwards. Dollar values are spot prices from those pools.
+          (no approval needed), USDG routes USDG → SPY → HIGHER through two;
+          each pool takes 0.3%. Selling is the same route backwards, and SPY
+          is the cheapest (one pool). Dollar values are spot prices from those
+          pools.
         </p>
         <p className="muted">
           On a buy the pair sends the full amount and the token taxes it on the

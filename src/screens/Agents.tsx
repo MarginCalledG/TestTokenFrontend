@@ -15,7 +15,7 @@ import { addresses } from '../config/addresses'
 import { useTx } from '../hooks/useTx'
 import { TxLine } from '../components/TxLine'
 import { PayToggle } from '../components/PayToggle'
-import { useEthPay, useEthQuote } from '../hooks/useEthPay'
+import { useEthPay, useEthQuote, type Payment } from '../hooks/useEthPay'
 
 export function Agents() {
   const { agents, living, dead, refetch, configured } = useAgentRoster()
@@ -32,21 +32,22 @@ export function Agents() {
   const walletCap = consts.maxPerWallet ?? MAX_AGENTS_PER_WALLET
   const usdgDec = consts.usdgDecimals ?? 6
   const agentAddr = addresses.irsAgent as Address
-  const usdgAddr = addresses.usdg as Address
   const usdgUnits = (v: number) => parseUnits(String(v), usdgDec)
   const pay = useEthPay(agentAddr, irsAgentAbi)
-  const mintEth = useEthQuote(agentAddr, irsAgentAbi, usdgUnits(mintPrice), pay.useEth)
+  const mintEth = useEthQuote(usdgUnits(mintPrice), pay.useEth)
 
   /** ETH: send value (quote + 3% buffer, refunded), no approval. USDG: approve then call. */
-  const payArgs = async (usdgAmount: bigint) => {
-    if (pay.useEth) return { value: await pay.ethValue(usdgAmount), approvals: [] }
-    await pay.checkUsdg(usdgAmount)
-    return { value: undefined, approvals: [{ token: usdgAddr, spender: agentAddr, amount: usdgAmount, symbol: 'USDG' }] }
+  /** ETH (native, or by first buying the missing USDG) or USDG. False = the pre-purchase failed. */
+  const payArgs = async (usdgAmount: bigint): Promise<Payment | false> => {
+    const p = await pay.prepare(usdgAmount)
+    if (p.pre && !(await tx.run(p.pre.label, p.pre.call))) return false
+    return p
   }
 
   const mint = async () => {
-    let p
+    let p: Payment | false
     try { p = await payArgs(usdgUnits(mintPrice)) } catch (e) { return tx.fail('Mint agent', e) }
+    if (!p) return false
     return tx.run('Mint agent', { address: agentAddr, abi: irsAgentAbi, functionName: 'mint', value: p.value }, p.approvals)
   }
   const attack = (id: bigint) =>
@@ -57,8 +58,9 @@ export function Agents() {
       args: [id],
     })
   const feed = async (id: bigint, feedUsdg: number) => {
-    let p
+    let p: Payment | false
     try { p = await payArgs(usdgUnits(feedUsdg)) } catch (e) { return tx.fail(`Feed agent #${id}`, e) }
+    if (!p) return false
     return tx.run(
       `Feed agent #${id}`,
       { address: agentAddr, abi: irsAgentAbi, functionName: 'feed', args: [id], value: p.value },
@@ -178,9 +180,9 @@ export function Agents() {
           </div>
           {pay.useEth ? (
             <p className="muted" style={{ marginTop: '0.25rem' }}>
-              Paid in ETH: the contract buys exactly {usdg(mintPrice)} in USDG on Uniswap and refunds
-              the rest in the same transaction (3% buffer sent, ~0.3% pool fee actually paid). Feeding
-              works the same way.
+              {pay.native
+                ? `Paid in ETH: the contract buys exactly ${usdg(mintPrice)} in USDG on Uniswap and refunds the rest in the same transaction (3% buffer sent, ~0.3% pool fee actually paid). Feeding works the same way.`
+                : `Paid in ETH: if your wallet lacks the USDG, the missing amount is first bought with ETH on Uniswap (one extra confirmation, unused ETH refunded, ~0.3% pool fee), then the agent is paid in USDG. Feeding works the same way.`}
             </p>
           ) : null}
           <p className="muted" style={{ marginTop: '0.5rem' }}>

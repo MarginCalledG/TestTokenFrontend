@@ -49,7 +49,7 @@ export type Quote = {
 }
 
 /** What the user pays with on a buy / receives on a sell. */
-export type Asset = 'ETH' | 'SPY'
+export type Asset = 'ETH' | 'USDG' | 'SPY'
 
 export function useTrade(
   side: Side,
@@ -60,7 +60,8 @@ export function useTrade(
   const { address: account } = useAccount()
   const ready =
     configured('higher', 'spy', 'router', 'pair') &&
-    (asset === 'SPY' || configured('weth', 'usdg')) &&
+    (asset === 'SPY' || configured('usdg')) &&
+    (asset !== 'ETH' || configured('weth')) &&
     !DEMO
   const live = ready && amountIn !== undefined && amountIn > 0n
 
@@ -71,10 +72,15 @@ export function useTrade(
   const usdgAddr = addresses.usdg as Address
 
   /** ETH has no allowance; on an ETH buy nothing needs approving. */
-  const tokenIn: Address | undefined = side === 'sell' ? higher : asset === 'SPY' ? spy : undefined
-  /** ETH goes WETH -> USDG -> SPY -> HIGHER (no WETH/SPY pool exists); the sell is the reverse. */
+  const tokenIn: Address | undefined =
+    side === 'sell' ? higher : asset === 'SPY' ? spy : asset === 'USDG' ? usdgAddr : undefined
+  /**
+   * HIGHER only trades against SPY. ETH goes WETH -> USDG -> SPY -> HIGHER (no WETH/SPY pool
+   * exists), USDG goes USDG -> SPY -> HIGHER; sells are the same routes reversed.
+   */
   const path = useMemo<readonly Address[]>(() => {
-    const buy = asset === 'ETH' ? [weth, usdgAddr, spy, higher] : [spy, higher]
+    const buy =
+      asset === 'ETH' ? [weth, usdgAddr, spy, higher] : asset === 'USDG' ? [usdgAddr, spy, higher] : [spy, higher]
     return side === 'buy' ? buy : [...buy].reverse()
   }, [side, asset, spy, higher, weth, usdgAddr])
 
