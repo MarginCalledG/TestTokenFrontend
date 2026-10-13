@@ -1,0 +1,760 @@
+/* ===========================================================================
+ * HIGHER — 90s desktop
+ *
+ * The whole app is a beige PC. Screens are windows, navigation is a desktop
+ * of icons plus a taskbar. Nothing here uses Microsoft assets: the bevels are
+ * plain CSS borders, the icons are drawn in src/components/win/Icons.tsx, and
+ * the type falls back through fonts that ship with the OS.
+ *
+ * Bevels are the whole language. Raised = clickable or a surface that sits on
+ * top; sunken = a field you read out of or type into. Getting that backwards
+ * is what makes a fake 95 UI feel wrong, so: .raised on buttons and windows,
+ * .sunken on readouts, inputs and status panels.
+ *
+ * The one thing that must never be hidden is the melt, so it lives in the
+ * taskbar tray — always on screen, even with every window closed.
+ * =========================================================================== */
+
+:root {
+  --face: #c0c0c0;
+  --face-lt: #dfdfdf;
+  --hi: #ffffff;
+  --sh: #808080;
+  --sh-dk: #000000;
+  --desktop: #008080;
+  --title: #000080;
+  --title-2: #1084d0;
+  --title-off: #7b7b7b;
+  --title-off-2: #a0a0a0;
+  --sel: #000080;
+  --field: #ffffff;
+  --ink: #000000;
+
+  --red: #c00000;
+  --green: #007800;
+  --amber: #7a5c00;
+
+  --ui: Tahoma, Verdana, Geneva, 'DejaVu Sans', sans-serif;
+  --mono: 'Courier New', 'Lucida Console', monospace;
+
+  --bw: 2px;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  /* Teal stays as the fallback: it paints instantly, matches the wallpaper's
+     darkness, and is what shows if the image 404s or is still loading. */
+  background: var(--desktop);
+  color: var(--ink);
+  font-family: var(--ui);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow: hidden;
+}
+
+/* Bevel primitives ---------------------------------------------------------- */
+
+.raised {
+  border-style: solid;
+  border-width: var(--bw);
+  border-color: var(--hi) var(--sh-dk) var(--sh-dk) var(--hi);
+  background: var(--face);
+  box-shadow: inset 1px 1px 0 var(--face-lt), inset -1px -1px 0 var(--sh);
+}
+
+.sunken {
+  border-style: solid;
+  border-width: var(--bw);
+  border-color: var(--sh) var(--hi) var(--hi) var(--sh);
+  background: var(--field);
+  box-shadow: inset 1px 1px 0 var(--sh-dk), inset -1px -1px 0 var(--face-lt);
+}
+
+.groove {
+  border: 1px solid var(--sh);
+  border-right-color: var(--hi);
+  border-bottom-color: var(--hi);
+}
+
+/* Desktop ------------------------------------------------------------------- */
+
+.desktop {
+  position: fixed;
+  inset: 0 0 40px 0;
+  overflow: hidden;
+  background-color: var(--desktop);
+  background-image: url('./assets/desktop-wallpaper.webp');
+  background-size: cover;
+  background-position: center bottom;
+  /* Pixel art must not be smoothed when the browser scales it up. */
+  image-rendering: pixelated;
+}
+
+.icons {
+  display: grid;
+  /* Win95 shipped 32px icons on a ~72dpi CRT. On a modern panel that same
+     pixel count is roughly a third the physical size, so scaling up is closer
+     to how it actually looked than matching the raw numbers would be. */
+  grid-template-columns: repeat(auto-fill, 104px);
+  grid-auto-rows: 108px;
+  gap: 6px;
+  padding: 12px;
+  align-content: start;
+}
+
+.icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 4px;
+  background: none;
+  border: 1px dotted transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  text-align: center;
+  cursor: default;
+  width: 104px;
+}
+
+.icon span {
+  padding: 1px 3px;
+  line-height: 1.2;
+  /* The wallpaper is dark top-left where the icons sit, but a hard shadow
+     keeps labels legible if it's ever swapped for a brighter one. */
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.7);
+}
+
+.icon:hover span {
+  background: rgba(0, 0, 128, 0.4);
+}
+
+.icon[aria-pressed='true'] span {
+  background: var(--sel);
+  color: #fff;
+}
+
+.icon:focus-visible {
+  border-color: #fff;
+  outline: none;
+}
+
+.filelist {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 104px);
+  gap: 6px;
+}
+
+.fileicon {
+  color: var(--ink);
+}
+
+.fileicon span {
+  text-shadow: none;
+}
+
+.fileicon:hover span {
+  background: var(--sel);
+  color: #fff;
+}
+
+/* Windows ------------------------------------------------------------------- */
+
+.window {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 260px;
+  padding: 3px;
+}
+
+.titlebar {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 2px 2px 3px;
+  background: linear-gradient(90deg, var(--title), var(--title-2));
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  cursor: default;
+  user-select: none;
+  flex: none;
+}
+
+.window[data-active='false'] .titlebar {
+  background: linear-gradient(90deg, var(--title-off), var(--title-off-2));
+}
+
+.titlebar-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.titlebar-btns {
+  display: flex;
+  gap: 2px;
+}
+
+.tbtn {
+  width: 18px;
+  height: 16px;
+  padding: 0;
+  font-family: var(--ui);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.menubar {
+  display: flex;
+  gap: 2px;
+  padding: 1px 2px;
+  flex: none;
+}
+
+.menubar button {
+  background: none;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 12px;
+  padding: 1px 6px;
+  cursor: default;
+}
+
+.menubar button:hover {
+  background: var(--sel);
+  color: #fff;
+}
+
+.window-body {
+  flex: 1;
+  overflow: auto;
+  padding: 10px;
+  background: var(--face);
+  min-height: 0;
+}
+
+.statusbar {
+  flex: none;
+  display: flex;
+  gap: 3px;
+  padding: 2px;
+}
+
+.statusbar > * {
+  padding: 1px 6px;
+  font-size: 11px;
+  border: 1px solid var(--sh);
+  border-right-color: var(--hi);
+  border-bottom-color: var(--hi);
+}
+
+.statusbar > :first-child {
+  flex: 1;
+}
+
+/* Taskbar ------------------------------------------------------------------- */
+
+.taskbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 4px;
+  z-index: 9000;
+}
+
+.start {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 5px 12px 5px 8px;
+  cursor: pointer;
+  flex: none;
+}
+
+.tasks {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.task {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 180px;
+  flex: 0 1 180px;
+  padding: 5px 9px;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.task span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task[data-active='true'] {
+  border-color: var(--sh) var(--hi) var(--hi) var(--sh);
+  box-shadow: inset 1px 1px 0 var(--sh-dk);
+  background-image: repeating-conic-gradient(
+    var(--face) 0 25%,
+    var(--face-lt) 0 50%
+  );
+  background-size: 2px 2px;
+  font-weight: 700;
+}
+
+/* The melt lives here. Never hidden, never closable. */
+.tray {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 11px;
+  flex: none;
+  font-size: 13px;
+}
+
+.tray-melt {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--red);
+  white-space: nowrap;
+}
+
+.tray-clock {
+  min-width: 58px;
+  text-align: center;
+}
+
+/* Content inside windows ---------------------------------------------------- */
+
+h1,
+h2,
+h3 {
+  font-family: var(--ui);
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+p {
+  margin: 0 0 8px;
+  max-width: 70ch;
+}
+
+a {
+  color: var(--title);
+}
+
+ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+
+li {
+  margin-bottom: 3px;
+}
+
+.stack > * + * {
+  margin-top: 10px;
+}
+
+.grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: start;
+}
+
+/* Group box, i.e. the old .field */
+.field {
+  border: 1px solid var(--sh);
+  border-right-color: var(--hi);
+  border-bottom-color: var(--hi);
+  padding: 0;
+  position: relative;
+  margin-top: 8px;
+}
+
+.field-head {
+  position: absolute;
+  top: -9px;
+  left: 7px;
+  right: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--face);
+  padding: 0 4px;
+  font-size: 12px;
+}
+
+.field-head h2 {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.field-note {
+  font-size: 11px;
+  color: #404040;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.field-body {
+  padding: 12px 10px 10px;
+}
+
+.field-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* Readouts --------------------------------------------------------------- */
+
+.strip {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 6px;
+}
+
+.strip-cell {
+  padding: 5px 7px;
+  min-width: 0;
+  border: 1px solid var(--sh);
+  border-right-color: var(--hi);
+  border-bottom-color: var(--hi);
+  background: var(--face);
+}
+
+.strip-label {
+  font-size: 11px;
+  color: #303030;
+  margin-bottom: 3px;
+}
+
+.balance {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: clamp(18px, 4.5vw, 28px);
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.balance-unit {
+  font-family: var(--ui);
+  font-size: 11px;
+  margin-left: 5px;
+}
+
+.figure {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 17px;
+}
+
+.figure-sm,
+.rows td.n,
+.pair dd {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.loss {
+  color: var(--red);
+}
+.protected {
+  color: var(--green);
+}
+.special {
+  color: var(--amber);
+}
+
+/* Tables ------------------------------------------------------------------- */
+
+.rows {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  background: var(--field);
+  border: 1px solid var(--sh);
+}
+
+.rows th {
+  text-align: left;
+  font-weight: 700;
+  font-size: 11px;
+  padding: 2px 6px;
+  background: var(--face);
+  border: 1px solid var(--face);
+  border-right-color: var(--sh);
+  border-bottom-color: var(--sh);
+  box-shadow: inset 1px 1px 0 var(--hi);
+}
+
+.rows th.n,
+.rows td.n {
+  text-align: right;
+}
+
+.rows td {
+  padding: 3px 6px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.rows tbody tr:hover td {
+  background: #e8e8f4;
+}
+
+.pair {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 2px 0;
+  font-size: 12px;
+}
+
+.pair + .pair {
+  border-top: 1px solid #b0b0b0;
+}
+
+.pair dt {
+  color: #202020;
+}
+
+.pair dd {
+  margin: 0;
+  font-weight: 700;
+}
+
+dl {
+  margin: 0;
+}
+
+/* Controls ----------------------------------------------------------------- */
+
+.btn,
+.tbtn,
+.start,
+.task,
+.tray {
+  border-style: solid;
+  border-width: var(--bw);
+  border-color: var(--hi) var(--sh-dk) var(--sh-dk) var(--hi);
+  background: var(--face);
+  box-shadow: inset 1px 1px 0 var(--face-lt), inset -1px -1px 0 var(--sh);
+  color: var(--ink);
+}
+
+.tray {
+  border-color: var(--sh) var(--hi) var(--hi) var(--sh);
+  box-shadow: inset 1px 1px 0 var(--sh-dk);
+}
+
+.btn {
+  font-family: var(--ui);
+  font-size: 12px;
+  padding: 3px 12px;
+  min-width: 72px;
+  cursor: pointer;
+}
+
+.btn:active:not(:disabled),
+.tbtn:active,
+.start:active {
+  border-color: var(--sh-dk) var(--hi) var(--hi) var(--sh-dk);
+  box-shadow: inset 1px 1px 0 var(--sh);
+  padding: 4px 11px 2px 13px;
+}
+
+.tbtn:active {
+  padding: 0;
+}
+
+.btn:disabled {
+  color: var(--sh);
+  text-shadow: 1px 1px 0 var(--hi);
+  cursor: default;
+}
+
+.btn.danger {
+  font-weight: 700;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.btn:focus-visible,
+.icon:focus-visible,
+.task:focus-visible,
+.start:focus-visible,
+input:focus-visible {
+  outline: 1px dotted var(--ink);
+  outline-offset: -4px;
+}
+
+input[type='text'],
+input[type='number'] {
+  font-family: var(--mono);
+  font-size: 13px;
+  width: 100%;
+  padding: 3px 5px;
+  border-style: solid;
+  border-width: var(--bw);
+  border-color: var(--sh) var(--hi) var(--hi) var(--sh);
+  background: var(--field);
+  box-shadow: inset 1px 1px 0 var(--sh-dk);
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 3px;
+}
+
+/* Notices as dialog strips -------------------------------------------------- */
+
+.notice {
+  display: flex;
+  gap: 9px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  background: var(--face);
+  border: 1px solid var(--sh);
+  border-right-color: var(--hi);
+  border-bottom-color: var(--hi);
+}
+
+.notice::before {
+  content: '';
+  flex: none;
+  width: 22px;
+  height: 22px;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+.notice.warn::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Cpath d='M11 1 21 20H1z' fill='%23ffd800' stroke='%23000'/%3E%3Crect x='10' y='7' width='2.4' height='7' fill='%23000'/%3E%3Crect x='10' y='16' width='2.4' height='2.4' fill='%23000'/%3E%3C/svg%3E");
+}
+
+.notice.setup::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Ccircle cx='11' cy='11' r='10' fill='%23fff' stroke='%23000'/%3E%3Crect x='9.6' y='9' width='2.6' height='8' fill='%23000080'/%3E%3Crect x='9.6' y='5' width='2.6' height='2.6' fill='%23000080'/%3E%3C/svg%3E");
+}
+
+.notice.calm::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Ccircle cx='11' cy='11' r='10' fill='%23fff' stroke='%23000'/%3E%3Cpath d='M6 11l3.5 4L16 7' stroke='%23007800' stroke-width='2.6' fill='none'/%3E%3C/svg%3E");
+}
+
+.notice p:last-child {
+  margin-bottom: 0;
+}
+
+.stamp {
+  display: inline-block;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  letter-spacing: 0.04em;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 11px;
+  padding: 0 5px;
+  border: 1px solid var(--sh);
+  border-right-color: var(--hi);
+  border-bottom-color: var(--hi);
+  background: var(--face);
+}
+
+.muted {
+  font-size: 11px;
+  color: #383838;
+}
+
+.reveal {
+  display: inline-block;
+}
+
+/* Progress bar, used for the melt. Blocks, not a smooth fill. */
+.progress {
+  height: 16px;
+  padding: 2px;
+  display: flex;
+  gap: 2px;
+  overflow: hidden;
+}
+
+.progress i {
+  flex: none;
+  width: 9px;
+  background: var(--title);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Narrow screens: one maximised window, switch via the taskbar. */
+@media (max-width: 760px) {
+  .strip {
+    grid-template-columns: 1fr 1fr;
+  }
+  .strip-cell:first-child {
+    grid-column: 1 / -1;
+  }
+  .icons {
+    grid-template-columns: repeat(auto-fill, 88px);
+    grid-auto-rows: 98px;
+  }
+  .icon {
+    width: 88px;
+    font-size: 12px;
+  }
+  .tray-clock {
+    display: none;
+  }
+}
