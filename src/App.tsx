@@ -20,6 +20,7 @@ import { HowItWorks } from './screens/HowItWorks'
 import { activeChain, isTestnet } from './config/chains'
 import { missing } from './config/addresses'
 import { DEMO } from './config/demo'
+import { ChainGuard } from './components/ChainGuard'
 
 type AppDef = {
   id: string
@@ -166,6 +167,7 @@ export default function App() {
 
   return (
     <>
+      <ChainGuard />
       <div className="desktop" onPointerDown={() => setSelected(null)}>
         <div className="icons">
           {APPS.map((a) => (

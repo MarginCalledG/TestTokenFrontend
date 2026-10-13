@@ -4,6 +4,8 @@ import { BaseError } from 'viem'
 import { useAccount, useConfig } from 'wagmi'
 import { readContract, waitForTransactionReceipt, writeContract } from 'wagmi/actions'
 import { erc20Abi } from '../abi'
+import { activeChain } from '../config/chains'
+import { ensureChain } from '../lib/ensureChain'
 
 export type TxStatus = 'idle' | 'approving' | 'sending' | 'success' | 'error'
 export type TxState = { status: TxStatus; label?: string; hash?: string; error?: string }
@@ -29,7 +31,7 @@ export function useTx(onDone?: () => void) {
     async (
       label: string,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      call: { address: Address; abi: any; functionName: string; args?: readonly unknown[] },
+      call: { address: Address; abi: any; functionName: string; args?: readonly unknown[]; value?: bigint },
       approvals: Approval[] = [],
     ) => {
       if (!address) {
@@ -37,6 +39,7 @@ export function useTx(onDone?: () => void) {
         return false
       }
       try {
+        await ensureChain(config)
         for (const a of approvals) {
           const have = (await readContract(config, {
             address: a.token,
@@ -47,6 +50,7 @@ export function useTx(onDone?: () => void) {
           if (have >= a.amount) continue
           setState({ status: 'approving', label: `Approve ${a.symbol}` })
           const h = await writeContract(config, {
+            chainId: activeChain.id,
             address: a.token,
             abi: erc20Abi,
             functionName: 'approve',
@@ -57,7 +61,7 @@ export function useTx(onDone?: () => void) {
         }
         setState({ status: 'sending', label })
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const hash = await writeContract(config, call as any)
+        const hash = await writeContract(config, { ...call, chainId: activeChain.id } as any)
         setState({ status: 'sending', label, hash })
         const rc = await waitForTransactionReceipt(config, { hash })
         if (rc.status !== 'success') throw new Error('Transaction reverted')
@@ -81,6 +85,7 @@ export function useTx(onDone?: () => void) {
 /** The revert reason if there is one ("max wallet", "dead", "cooldown" …), else the short message. */
 export function errorText(e: unknown): string {
   if (e instanceof BaseError) {
+    if (/chain|ChainMismatch/i.test(e.name) || /does not match the target chain/i.test(e.message)) return e.shortMessage
     const reason = (e.walk((x) => 'reason' in (x as object)) as { reason?: string } | null)?.reason
     if (reason) return reason
     return e.shortMessage

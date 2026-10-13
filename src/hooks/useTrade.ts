@@ -1,7 +1,8 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { Address } from 'viem'
 import {
   useAccount,
+  useConfig,
   useReadContract,
   useReadContracts,
   useWaitForTransactionReceipt,
@@ -11,6 +12,8 @@ import { erc20Abi, higherAbi, v2RouterAbi } from '../abi'
 import { addresses, configured } from '../config/addresses'
 import { DEMO } from '../config/demo'
 import { TAX_CAP_BPS, useTradeTax } from './useTax'
+import { activeChain } from '../config/chains'
+import { ensureChain } from '../lib/ensureChain'
 
 export type Side = 'buy' | 'sell'
 export type TradeStatus = 'idle' | 'approving' | 'swapping' | 'success' | 'error'
@@ -176,12 +179,30 @@ export function useTrade(
     allowance !== undefined &&
     (allowance as bigint) < amountIn
 
-  const { writeContract, data: hash, isPending, error: writeError, reset } =
+  const config = useConfig()
+  const [chainError, setChainError] = useState<string | undefined>()
+  const { writeContract, data: hash, isPending, error: writeError, reset: resetWrite } =
     useWriteContract()
+  const reset = useCallback(() => {
+    setChainError(undefined)
+    resetWrite()
+  }, [resetWrite])
+  /** Refuse to sign anywhere but Robinhood Chain (some wallets default to Ethereum). */
+  const onChain = useCallback(async () => {
+    try {
+      await ensureChain(config)
+      setChainError(undefined)
+      return true
+    } catch (e) {
+      setChainError((e as Error).message)
+      return false
+    }
+  }, [config])
   const { isLoading: mining, isSuccess } = useWaitForTransactionReceipt({ hash })
 
-  const approve = useCallback(() => {
+  const approve = useCallback(async () => {
     if (amountIn === undefined) return
+    if (!(await onChain())) return
     /**
      * Approve slightly above the trade size. `transferFrom` reduces allowance
      * by `amount` while moving `removed <= amount` (rounding in the scaled
@@ -190,16 +211,19 @@ export function useTrade(
      */
     const padded = (amountIn * 101n) / 100n
     writeContract({
+      chainId: activeChain.id,
       address: tokenIn,
       abi: erc20Abi,
       functionName: 'approve',
       args: [router, padded],
     })
-  }, [amountIn, tokenIn, router, writeContract])
+  }, [amountIn, tokenIn, router, writeContract, onChain])
 
-  const swap = useCallback(() => {
+  const swap = useCallback(async () => {
     if (amountIn === undefined || quote === undefined || account === undefined) return
+    if (!(await onChain())) return
     writeContract({
+      chainId: activeChain.id,
       address: router,
       abi: v2RouterAbi,
       functionName: 'swapExactTokensForTokensSupportingFeeOnTransferTokens',
@@ -211,9 +235,9 @@ export function useTrade(
         BigInt(Math.floor(Date.now() / 1000)) + DEADLINE_SEC,
       ],
     })
-  }, [amountIn, quote, account, router, path, writeContract])
+  }, [amountIn, quote, account, router, path, writeContract, onChain])
 
-  const status: TradeStatus = writeError
+  const status: TradeStatus = writeError || chainError
     ? 'error'
     : isSuccess
       ? 'success'
@@ -232,7 +256,7 @@ export function useTrade(
     approve,
     swap,
     status,
-    error: writeError?.message,
+    error: chainError ?? writeError?.message,
     reset,
     refetchAllowance,
     capRemaining,
