@@ -1,5 +1,5 @@
 // Generated from the IRSAgent Foundry artifact. Do not edit by hand.
-// Regenerate: scripts/gen-abi.py (reads TestToken/out/IRSAgent.sol/IRSAgent.json)
+// Regenerate: frontend/scripts/gen-abi.py (reads ../out/IRSAgent.sol/IRSAgent.json)
 
 export const irsAgentAbi = [
   {
@@ -27,6 +27,10 @@ export const irsAgentAbi = [
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -562,6 +566,19 @@ export const irsAgentAbi = [
   },
   {
     "type": "function",
+    "name": "ethRouter",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "executeVrf",
     "inputs": [],
     "outputs": [],
@@ -578,7 +595,7 @@ export const irsAgentAbi = [
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -647,7 +664,7 @@ export const irsAgentAbi = [
         "internalType": "uint256"
       }
     ],
-    "stateMutability": "nonpayable"
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -814,6 +831,25 @@ export const irsAgentAbi = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "quoteEth",
+    "inputs": [
+      {
+        "name": "usdgAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -1059,6 +1095,19 @@ export const irsAgentAbi = [
         "name": "approved",
         "type": "bool",
         "internalType": "bool"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setEthRouter",
+    "inputs": [
+      {
+        "name": "r",
+        "type": "address",
+        "internalType": "address"
       }
     ],
     "outputs": [],
@@ -1514,6 +1563,19 @@ export const irsAgentAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EthRouterSet",
+    "inputs": [
+      {
+        "name": "router",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
       }
     ],
     "anonymous": false

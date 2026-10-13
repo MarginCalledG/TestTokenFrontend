@@ -14,6 +14,8 @@ import { irsAgentAbi } from '../abi'
 import { addresses } from '../config/addresses'
 import { useTx } from '../hooks/useTx'
 import { TxLine } from '../components/TxLine'
+import { PayToggle } from '../components/PayToggle'
+import { useEthPay, useEthQuote } from '../hooks/useEthPay'
 
 export function Agents() {
   const { agents, living, dead, refetch, configured } = useAgentRoster()
@@ -32,11 +34,20 @@ export function Agents() {
   const agentAddr = addresses.irsAgent as Address
   const usdgAddr = addresses.usdg as Address
   const usdgUnits = (v: number) => parseUnits(String(v), usdgDec)
+  const pay = useEthPay(agentAddr, irsAgentAbi)
+  const mintEth = useEthQuote(agentAddr, irsAgentAbi, usdgUnits(mintPrice), pay.useEth)
 
-  const mint = () =>
-    tx.run('Mint agent', { address: agentAddr, abi: irsAgentAbi, functionName: 'mint' }, [
-      { token: usdgAddr, spender: agentAddr, amount: usdgUnits(mintPrice), symbol: 'USDG' },
-    ])
+  /** ETH: send value (quote + 3% buffer, refunded), no approval. USDG: approve then call. */
+  const payArgs = async (usdgAmount: bigint) =>
+    pay.useEth
+      ? { value: await pay.ethValue(usdgAmount), approvals: [] }
+      : { value: undefined, approvals: [{ token: usdgAddr, spender: agentAddr, amount: usdgAmount, symbol: 'USDG' }] }
+
+  const mint = async () => {
+    let p
+    try { p = await payArgs(usdgUnits(mintPrice)) } catch (e) { return tx.fail('Mint agent', e) }
+    return tx.run('Mint agent', { address: agentAddr, abi: irsAgentAbi, functionName: 'mint', value: p.value }, p.approvals)
+  }
   const attack = (id: bigint) =>
     tx.run(`Agent #${id} audit`, {
       address: agentAddr,
@@ -44,12 +55,15 @@ export function Agents() {
       functionName: 'attack',
       args: [id],
     })
-  const feed = (id: bigint, feedUsdg: number) =>
-    tx.run(
+  const feed = async (id: bigint, feedUsdg: number) => {
+    let p
+    try { p = await payArgs(usdgUnits(feedUsdg)) } catch (e) { return tx.fail(`Feed agent #${id}`, e) }
+    return tx.run(
       `Feed agent #${id}`,
-      { address: agentAddr, abi: irsAgentAbi, functionName: 'feed', args: [id] },
-      [{ token: usdgAddr, spender: agentAddr, amount: usdgUnits(feedUsdg), symbol: 'USDG' }],
+      { address: agentAddr, abi: irsAgentAbi, functionName: 'feed', args: [id], value: p.value },
+      p.approvals,
     )
+  }
   const claim = async (id: bigint, claims: { epoch: number }[]) => {
     for (const c of claims) {
       const ok = await tx.run(`Claim agent #${id}, epoch ${c.epoch}`, {
@@ -150,6 +164,7 @@ export function Agents() {
             </tbody>
           </table>
 
+          <PayToggle supported={pay.supported} value={pay.payWith} onChange={pay.setPayWith} />
           <div className="btn-row">
             <button
               className="btn"
@@ -157,8 +172,16 @@ export function Agents() {
               onClick={() => void mint()}
             >
               Mint for {usdg(mintPrice)}
+              {pay.useEth && mintEth ? ` (${mintEth})` : ''}
             </button>
           </div>
+          {pay.useEth ? (
+            <p className="muted" style={{ marginTop: '0.25rem' }}>
+              Paid in ETH: the contract buys exactly {usdg(mintPrice)} in USDG on Uniswap and refunds
+              the rest in the same transaction (3% buffer sent, ~0.3% pool fee actually paid). Feeding
+              works the same way.
+            </p>
+          ) : null}
           <p className="muted" style={{ marginTop: '0.5rem' }}>
             {living.length} of {walletCap} agent slots used. Rank is
             random and revealed when the current 8-hour epoch ends — you are buying a

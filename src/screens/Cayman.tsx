@@ -12,25 +12,48 @@ import { caymanAbi } from '../abi'
 import { addresses } from '../config/addresses'
 import { useTx } from '../hooks/useTx'
 import { TxLine } from '../components/TxLine'
+import { PayToggle } from '../components/PayToggle'
+import { useEthPay } from '../hooks/useEthPay'
 
 export function Cayman() {
   const { positions, potBalance, minLock, configured, refetch } = useLockPositions()
   const { decimals, live } = useMeltingBalance()
   const tx = useTx(refetch)
   const vault = addresses.cayman as Address
-  const feeApproval = (fee: bigint | undefined) =>
-    fee === undefined ? [] : [{ token: addresses.usdg as Address, spender: vault, amount: fee, symbol: 'USDG' }]
-  const lock = (tier: number, raw: string, fee: bigint | undefined) => {
+  const pay = useEthPay(vault, caymanAbi)
+  /** Fee in ETH (value, refunded buffer) or USDG (approval). */
+  const feePay = async (fee: bigint | undefined) => {
+    if (fee === undefined) return { value: undefined, approvals: [] }
+    return pay.useEth
+      ? { value: await pay.ethValue(fee), approvals: [] }
+      : { value: undefined, approvals: [{ token: addresses.usdg as Address, spender: vault, amount: fee, symbol: 'USDG' }] }
+  }
+  const lock = async (tier: number, raw: string, fee: bigint | undefined) => {
+    const label = `Lock ${tierOf(tier)?.name}`
     const amount = parseUnits(raw, decimals)
+    // The token reverts with a bare "balance", which wallets mis-translate as "not enough ETH".
+    if (live !== undefined && amount > parseUnits(live.toFixed(decimals > 6 ? 6 : decimals), decimals))
+      return tx.fail(label, new Error(`You only have ${num(live, 2)} HIGHER unlocked.`))
+    let f
+    try { f = await feePay(fee) } catch (e) { return tx.fail(label, e) }
     // HIGHER is a scaled-balance token: transferFrom may consume a few wei more
     // allowance than it moves, so approve 1% over rather than unlimited.
     return tx.run(
-      `Lock ${tierOf(tier)?.name}`,
-      { address: vault, abi: caymanAbi, functionName: 'lock', args: [tier, amount] },
+      label,
+      { address: vault, abi: caymanAbi, functionName: 'lock', args: [tier, amount], value: f.value },
       [
         { token: addresses.higher as Address, spender: vault, amount: (amount * 101n) / 100n, symbol: 'HIGHER' },
-        ...feeApproval(fee),
+        ...f.approvals,
       ],
+    )
+  }
+  const relock = async (tier: number, name: string, fee: bigint | undefined) => {
+    let f
+    try { f = await feePay(fee) } catch (e) { return tx.fail(`Relock ${name}`, e) }
+    return tx.run(
+      `Relock ${name}`,
+      { address: vault, abi: caymanAbi, functionName: 'relock', args: [tier], value: f.value },
+      f.approvals,
     )
   }
   const [amounts, setAmounts] = useState<Record<number, string>>({})
@@ -53,6 +76,17 @@ export function Cayman() {
     <div className="stack">
       <ConstantsWarning />
       <TxLine state={tx.state} onDismiss={tx.reset} />
+      {pay.supported ? (
+        <Field title="Lock fees" note={pay.useEth ? 'paid in ETH' : 'paid in USDG'}>
+          <PayToggle supported={pay.supported} value={pay.payWith} onChange={pay.setPayWith} />
+          {pay.useEth ? (
+            <p className="muted">
+              The USDG fee is bought for you on Uniswap from the ETH you send; the unused ETH comes
+              back in the same transaction. You still approve HIGHER once.
+            </p>
+          ) : null}
+        </Field>
+      ) : null}
       {expired.length > 0 ? (
         <Notice kind="warn">
           <p>
@@ -185,13 +219,7 @@ export function Cayman() {
                   <button
                     className="btn secondary"
                     disabled={!pos?.hasPosition || tx.busy}
-                    onClick={() =>
-                      void tx.run(
-                        `Relock ${tier.name}`,
-                        { address: vault, abi: caymanAbi, functionName: 'relock', args: [tier.id] },
-                        feeApproval(feeOnChain),
-                      )
-                    }
+                    onClick={() => void relock(tier.id, tier.name, feeOnChain)}
                   >
                     Relock
                   </button>
@@ -212,8 +240,8 @@ export function Cayman() {
                 </div>
 
                 <p className="muted" style={{ marginTop: '0.5rem' }}>
-                  Locking costs {usdg(tier.feeUsdg)} in USDG plus gas, and needs
-                  two approvals (HIGHER and USDG). Relocking costs the fee again.
+                  Locking costs {usdg(tier.feeUsdg)} {pay.useEth ? '(paid in ETH)' : 'in USDG'} plus gas.
+                  Relocking costs the fee again.
                 </p>
               </Field>
             )

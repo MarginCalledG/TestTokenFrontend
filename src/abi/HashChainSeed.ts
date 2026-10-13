@@ -1,5 +1,5 @@
 // Generated from the HashChainSeed Foundry artifact. Do not edit by hand.
-// Regenerate: scripts/gen-abi.py (reads TestToken/out/HashChainSeed.sol/HashChainSeed.json)
+// Regenerate: frontend/scripts/gen-abi.py (reads ../out/HashChainSeed.sol/HashChainSeed.json)
 
 export const seedAbi = [
   {

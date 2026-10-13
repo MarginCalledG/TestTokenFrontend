@@ -78,8 +78,10 @@ export function useTx(onDone?: () => void) {
   )
 
   const reset = useCallback(() => setState({ status: 'idle' }), [])
+  /** Report a failure that happened before anything was sent (e.g. the ETH quote could not be read). */
+  const fail = useCallback((label: string, e: unknown) => setState({ status: 'error', label, error: errorText(e) }), [])
   const busy = state.status === 'approving' || state.status === 'sending'
-  return { state, run, reset, busy }
+  return { state, run, reset, fail, busy }
 }
 
 /** The revert reason if there is one ("max wallet", "dead", "cooldown" …), else the short message. */

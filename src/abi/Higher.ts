@@ -1,5 +1,5 @@
 // Generated from the Higher Foundry artifact. Do not edit by hand.
-// Regenerate: scripts/gen-abi.py (reads TestToken/out/Higher.sol/Higher.json)
+// Regenerate: frontend/scripts/gen-abi.py (reads ../out/Higher.sol/Higher.json)
 
 export const higherAbi = [
   {

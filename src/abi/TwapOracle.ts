@@ -1,5 +1,5 @@
 // Generated from the TwapOracle Foundry artifact. Do not edit by hand.
-// Regenerate: scripts/gen-abi.py (reads TestToken/out/TwapOracle.sol/TwapOracle.json)
+// Regenerate: frontend/scripts/gen-abi.py (reads ../out/TwapOracle.sol/TwapOracle.json)
 
 export const twapOracleAbi = [
   {

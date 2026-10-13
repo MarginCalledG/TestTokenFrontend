@@ -1,5 +1,5 @@
 // Generated from the CaymanIslands Foundry artifact. Do not edit by hand.
-// Regenerate: scripts/gen-abi.py (reads TestToken/out/CaymanIslands.sol/CaymanIslands.json)
+// Regenerate: frontend/scripts/gen-abi.py (reads ../out/CaymanIslands.sol/CaymanIslands.json)
 
 export const caymanAbi = [
   {
@@ -22,6 +22,10 @@ export const caymanAbi = [
       }
     ],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "receive",
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -248,6 +252,19 @@ export const caymanAbi = [
   },
   {
     "type": "function",
+    "name": "ethRouter",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "expiredPrincipal",
     "inputs": [],
     "outputs": [
@@ -405,7 +422,7 @@ export const caymanAbi = [
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -564,6 +581,25 @@ export const caymanAbi = [
   },
   {
     "type": "function",
+    "name": "quoteEth",
+    "inputs": [
+      {
+        "name": "usdgAmount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "relock",
     "inputs": [
       {
@@ -573,7 +609,7 @@ export const caymanAbi = [
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
+    "stateMutability": "payable"
   },
   {
     "type": "function",
@@ -610,6 +646,19 @@ export const caymanAbi = [
   {
     "type": "function",
     "name": "setAgent",
+    "inputs": [
+      {
+        "name": "r",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setEthRouter",
     "inputs": [
       {
         "name": "r",
@@ -812,6 +861,19 @@ export const caymanAbi = [
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "EthRouterSet",
+    "inputs": [
+      {
+        "name": "router",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
       }
     ],
     "anonymous": false
