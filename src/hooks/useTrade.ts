@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Address } from 'viem'
 import {
   useAccount,
@@ -48,26 +48,52 @@ export type Quote = {
   taxAmount: bigint
 }
 
+/** What the user pays with on a buy / receives on a sell. */
+export type Asset = 'ETH' | 'SPY'
+
 export function useTrade(
   side: Side,
   amountIn: bigint | undefined,
   slippageBps: number,
+  asset: Asset = 'SPY',
 ) {
   const { address: account } = useAccount()
-  const ready = configured('higher', 'spy', 'router', 'pair') && !DEMO
+  const ready =
+    configured('higher', 'spy', 'router', 'pair') &&
+    (asset === 'SPY' || configured('weth', 'usdg')) &&
+    !DEMO
   const live = ready && amountIn !== undefined && amountIn > 0n
 
   const higher = addresses.higher as Address
   const spy = addresses.spy as Address
   const router = addresses.router as Address
+  const weth = addresses.weth as Address
+  const usdgAddr = addresses.usdg as Address
 
-  const tokenIn = side === 'buy' ? spy : higher
-  const path = useMemo<readonly Address[]>(
-    () => (side === 'buy' ? [spy, higher] : [higher, spy]),
-    [side, spy, higher],
-  )
+  /** ETH has no allowance; on an ETH buy nothing needs approving. */
+  const tokenIn: Address | undefined = side === 'sell' ? higher : asset === 'SPY' ? spy : undefined
+  /** ETH goes WETH -> USDG -> SPY -> HIGHER (no WETH/SPY pool exists); the sell is the reverse. */
+  const path = useMemo<readonly Address[]>(() => {
+    const buy = asset === 'ETH' ? [weth, usdgAddr, spy, higher] : [spy, higher]
+    return side === 'buy' ? buy : [...buy].reverse()
+  }, [side, asset, spy, higher, weth, usdgAddr])
 
-  const tax = useTradeTax(amountIn)
+  /**
+   * Buy side: the router quote is the pool output; the token then taxes that HIGHER amount on the
+   * way to the buyer. The token sizes the dynamic tax by the HIGHER amount moved, so the oracle is
+   * asked with the gross HIGHER output — not with the SPY/ETH input.
+   */
+  const { data: buyAmounts, isFetching: quotingBuy } = useReadContract({
+    address: router,
+    abi: v2RouterAbi,
+    functionName: 'getAmountsOut',
+    args: amountIn !== undefined ? [amountIn, path] : undefined,
+    query: { enabled: live && side === 'buy', refetchInterval: 5_000 },
+  })
+  const buyGross =
+    side === 'buy' && buyAmounts ? (buyAmounts as readonly bigint[]).at(-1) : undefined
+
+  const tax = useTradeTax(side === 'buy' ? buyGross : amountIn)
 
   /**
    * Sell side: the tax is taken on the way INTO the pool, so the pair receives
@@ -82,25 +108,22 @@ export function useTrade(
       ? (amountIn * (BPS - BigInt(sellTaxBps))) / BPS
       : undefined
 
-  const quoteAmount = side === 'buy' ? amountIn : netIn
-
-  const { data: amounts, isFetching: quoting } = useReadContract({
+  const { data: sellAmounts, isFetching: quotingSell } = useReadContract({
     address: router,
     abi: v2RouterAbi,
     functionName: 'getAmountsOut',
-    args: quoteAmount !== undefined ? [quoteAmount, path] : undefined,
-    query: {
-      enabled: live && quoteAmount !== undefined && quoteAmount > 0n,
-      refetchInterval: 5_000,
-    },
+    args: netIn !== undefined ? [netIn, path] : undefined,
+    query: { enabled: live && side === 'sell' && netIn !== undefined && netIn > 0n, refetchInterval: 5_000 },
   })
 
-  const routerOut = amounts ? (amounts as readonly bigint[])[1] : undefined
+  const routerOut =
+    side === 'buy'
+      ? buyGross
+      : sellAmounts
+        ? (sellAmounts as readonly bigint[]).at(-1)
+        : undefined
+  const quoting = side === 'buy' ? quotingBuy : quotingSell
 
-  /**
-   * Buy side: the pair sends the full amount and the token taxes it on the way
-   * to the buyer, so the tax applies to the router's output.
-   */
   const buyTaxBps = tax.buyBps
 
   const quote: Quote | undefined = useMemo(() => {
@@ -170,10 +193,11 @@ export function useTrade(
     abi: erc20Abi,
     functionName: 'allowance',
     args: account ? [account, router] : undefined,
-    query: { enabled: ready && !!account, refetchInterval: 10_000 },
+    query: { enabled: ready && !!account && !!tokenIn, refetchInterval: 10_000 },
   })
 
   const needsApproval =
+    tokenIn !== undefined &&
     amountIn !== undefined &&
     amountIn > 0n &&
     allowance !== undefined &&
@@ -201,7 +225,7 @@ export function useTrade(
   const { isLoading: mining, isSuccess } = useWaitForTransactionReceipt({ hash })
 
   const approve = useCallback(async () => {
-    if (amountIn === undefined) return
+    if (amountIn === undefined || tokenIn === undefined) return
     if (!(await onChain())) return
     /**
      * Approve slightly above the trade size. `transferFrom` reduces allowance
@@ -222,20 +246,40 @@ export function useTrade(
   const swap = useCallback(async () => {
     if (amountIn === undefined || quote === undefined || account === undefined) return
     if (!(await onChain())) return
-    writeContract({
-      chainId: activeChain.id,
-      address: router,
-      abi: v2RouterAbi,
-      functionName: 'swapExactTokensForTokensSupportingFeeOnTransferTokens',
-      args: [
-        amountIn,
-        quote.minOut,
-        path as Address[],
-        account,
-        BigInt(Math.floor(Date.now() / 1000)) + DEADLINE_SEC,
-      ],
-    })
-  }, [amountIn, quote, account, router, path, writeContract, onChain])
+    const deadline = BigInt(Math.floor(Date.now() / 1000)) + DEADLINE_SEC
+    const p = path as Address[]
+    if (asset === 'ETH' && side === 'buy') {
+      writeContract({
+        chainId: activeChain.id,
+        address: router,
+        abi: v2RouterAbi,
+        functionName: 'swapExactETHForTokensSupportingFeeOnTransferTokens',
+        args: [quote.minOut, p, account, deadline],
+        value: amountIn,
+      })
+    } else if (asset === 'ETH') {
+      writeContract({
+        chainId: activeChain.id,
+        address: router,
+        abi: v2RouterAbi,
+        functionName: 'swapExactTokensForETHSupportingFeeOnTransferTokens',
+        args: [amountIn, quote.minOut, p, account, deadline],
+      })
+    } else {
+      writeContract({
+        chainId: activeChain.id,
+        address: router,
+        abi: v2RouterAbi,
+        functionName: 'swapExactTokensForTokensSupportingFeeOnTransferTokens',
+        args: [amountIn, quote.minOut, p, account, deadline],
+      })
+    }
+  }, [amountIn, quote, account, router, path, asset, side, writeContract, onChain])
+
+  // An approval that just landed must unlock the swap button without waiting for the next poll.
+  useEffect(() => {
+    if (isSuccess) void refetchAllowance()
+  }, [isSuccess, refetchAllowance])
 
   const status: TradeStatus = writeError || chainError
     ? 'error'
@@ -252,6 +296,8 @@ export function useTrade(
     quoting,
     /** True while a refetch is in flight — mark the number stale, don't block. */
     stale: quoting && quote !== undefined,
+    /** Number of pools the trade crosses (each takes 0.3%). */
+    hops: path.length - 1,
     needsApproval,
     approve,
     swap,

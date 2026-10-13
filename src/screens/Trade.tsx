@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { formatUnits, parseUnits } from 'viem'
-import { useAccount, useReadContract } from 'wagmi'
+import { useAccount, useBalance, useReadContract } from 'wagmi'
 import { erc20Abi } from '../abi'
 import { addresses } from '../config/addresses'
 import { Field, Gate, Notice, Pair } from '../components/ui'
 import { useMeltingBalance, useHigherStats } from '../hooks/useHigher'
-import { applyMaxSellMargin, useTrade, type Side } from '../hooks/useTrade'
+import { applyMaxSellMargin, useTrade, type Asset, type Side } from '../hooks/useTrade'
+import { usd, useUsdPrices } from '../hooks/useUsdPrices'
 import { num, pct, token } from '../lib/format'
 import { bpsToPct } from '../lib/melt'
 
@@ -15,6 +16,9 @@ export function Trade() {
   const [side, setSide] = useState<Side>('buy')
   const [amountStr, setAmountStr] = useState('')
   const [slippageBps, setSlippageBps] = useState<number>(100)
+  /** Most buyers hold ETH, not SPY — so ETH is the default. */
+  const [asset, setAsset] = useState<Asset>('ETH')
+  const prices = useUsdPrices()
   const { address: account } = useAccount()
   const { decimals, onChain: higherBalance } = useMeltingBalance()
   const { inLaunchWindow, maxWallet } = useHigherStats()
@@ -27,11 +31,29 @@ export function Trade() {
     query: { enabled: !!addresses.spy },
   })
   const spyDecimals = spyDecimalsRaw === undefined ? 18 : Number(spyDecimalsRaw)
+  const assetDecimals = asset === 'ETH' ? 18 : spyDecimals
 
-  const inDecimals = side === 'buy' ? spyDecimals : decimals
-  const outDecimals = side === 'buy' ? decimals : spyDecimals
-  const inSymbol = side === 'buy' ? 'SPY' : 'HIGHER'
-  const outSymbol = side === 'buy' ? 'HIGHER' : 'SPY'
+  const inDecimals = side === 'buy' ? assetDecimals : decimals
+  const outDecimals = side === 'buy' ? decimals : assetDecimals
+  const inSymbol = side === 'buy' ? asset : 'HIGHER'
+  const outSymbol = side === 'buy' ? 'HIGHER' : asset
+
+  /** USD per whole unit of each side, for the "≈ $" labels. */
+  const assetUsd = asset === 'ETH' ? prices.eth : prices.spy
+  const inUsd = side === 'buy' ? assetUsd : prices.higher
+  const outUsd = side === 'buy' ? prices.higher : assetUsd
+  const toUsd = (v: bigint | undefined, d: number, px: number | undefined) =>
+    v === undefined || px === undefined ? undefined : Number(formatUnits(v, d)) * px
+
+  const { data: ethBal } = useBalance({ address: account, query: { enabled: !!account, refetchInterval: 15_000 } })
+  const { data: spyBal } = useReadContract({
+    address: addresses.spy ?? undefined,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: account ? [account] : undefined,
+    query: { enabled: !!addresses.spy && !!account, refetchInterval: 15_000 },
+  })
+  const assetBalance = asset === 'ETH' ? ethBal?.value : (spyBal as bigint | undefined)
 
   let amount: bigint | undefined
   try {
@@ -40,8 +62,21 @@ export function Trade() {
     amount = undefined
   }
 
-  const t = useTrade(side, amount, slippageBps)
+  const t = useTrade(side, amount, slippageBps, asset)
+  const tooMuch = side === 'buy' && amount !== undefined && assetBalance !== undefined && amount > assetBalance
   const { quote } = t
+
+  /**
+   * What the route itself costs in $: value in − tax − value out, all at spot. This is the 0.3% per
+   * pool plus price impact; the ETH route crosses three pools (one of them small), so show it.
+   */
+  const payUsd = amount !== undefined ? toUsd(amount, inDecimals, inUsd) : undefined
+  const taxUsd = quote ? toUsd(quote.taxAmount, decimals, prices.higher) : undefined
+  const outUsdV = quote ? toUsd(quote.expected, outDecimals, outUsd) : undefined
+  const routeCost =
+    payUsd !== undefined && taxUsd !== undefined && outUsdV !== undefined && payUsd - taxUsd - outUsdV > 0
+      ? payUsd - taxUsd - outUsdV
+      : undefined
 
   const setMaxSell = () => {
     if (higherBalance === undefined) return
@@ -70,7 +105,7 @@ export function Trade() {
       </Gate>
 
       <div className="grid">
-        <Field title={side === 'buy' ? 'Buy HIGHER with SPY' : 'Sell HIGHER for SPY'}>
+        <Field title={side === 'buy' ? `Buy HIGHER with ${asset}` : `Sell HIGHER for ${asset}`}>
           <div className="btn-row" style={{ marginTop: 0, marginBottom: 10 }}>
             <button
               className="btn"
@@ -94,6 +129,24 @@ export function Trade() {
             </button>
           </div>
 
+          <label>{side === 'buy' ? 'Pay with' : 'Receive'}</label>
+          <div className="btn-row" style={{ marginTop: 0, marginBottom: 10 }}>
+            {(['ETH', 'SPY'] as const).map((a) => (
+              <button
+                key={a}
+                className="btn"
+                style={{ minWidth: 0 }}
+                disabled={asset === a}
+                onClick={() => {
+                  setAsset(a)
+                  if (side === 'buy') setAmountStr('')
+                }}
+              >
+                {a}
+              </button>
+            ))}
+          </div>
+
           <label htmlFor="amt">Amount of {inSymbol}</label>
           <input
             id="amt"
@@ -103,10 +156,25 @@ export function Trade() {
             value={amountStr}
             onChange={(e) => setAmountStr(e.target.value)}
           />
+          {amount !== undefined && amount > 0n ? (
+            <p className="muted" style={{ marginTop: 4 }}>
+              {usd(toUsd(amount, inDecimals, inUsd))}
+            </p>
+          ) : null}
+
+          {side === 'buy' && assetBalance !== undefined ? (
+            <p className={tooMuch ? 'muted loss' : 'muted'} style={{ marginTop: 6 }}>
+              You hold {token(assetBalance, assetDecimals)} {asset}{' '}
+              {usd(toUsd(assetBalance, assetDecimals, assetUsd))}
+              {tooMuch ? ' — not enough for this amount.' : ''}
+              {asset === 'ETH' && !tooMuch ? ' Keep a little ETH for gas.' : ''}
+            </p>
+          ) : null}
 
           {side === 'sell' && higherBalance !== undefined ? (
             <p className="muted" style={{ marginTop: 6 }}>
-              You hold {token(higherBalance, decimals)} HIGHER.{' '}
+              You hold {token(higherBalance, decimals)} HIGHER{' '}
+              {usd(toUsd(higherBalance, decimals, prices.higher))}.{' '}
               <button className="btn" style={{ minWidth: 0 }} onClick={setMaxSell}>
                 Max
               </button>{' '}
@@ -134,6 +202,7 @@ export function Trade() {
                   !quote ||
                   !account ||
                   t.exceedsCap ||
+                  tooMuch ||
                   t.status === 'swapping'
                 }
                 onClick={t.swap}
@@ -175,25 +244,30 @@ export function Trade() {
               <dl>
                 <Pair
                   label="You pay"
-                  value={`${num(Number(formatUnits(amount, inDecimals)), 4)} ${inSymbol}`}
+                  value={<>{num(Number(formatUnits(amount, inDecimals)), 4)} {inSymbol} <Usd v={toUsd(amount, inDecimals, inUsd)} /></>}
                 />
                 <Pair
                   label={`Tax (${pct(bpsToPct(quote.taxBps))})`}
                   value={
                     <span className="loss">
-                      −{num(Number(formatUnits(quote.taxAmount,
-                        side === 'buy' ? outDecimals : inDecimals)), 4)}{' '}
-                      {side === 'buy' ? outSymbol : inSymbol}
+                      −{num(Number(formatUnits(quote.taxAmount, decimals)), 4)} HIGHER{' '}
+                      <Usd v={toUsd(quote.taxAmount, decimals, prices.higher)} />
                     </span>
                   }
                 />
+                {routeCost !== undefined ? (
+                  <Pair
+                    label={`Pool fees & price impact (${t.hops} pool${t.hops > 1 ? 's' : ''})`}
+                    value={<span className="muted">{usd(routeCost)}</span>}
+                  />
+                ) : null}
                 <Pair
                   label="Expected"
-                  value={`${num(Number(formatUnits(quote.expected, outDecimals)), 4)} ${outSymbol}`}
+                  value={<>{num(Number(formatUnits(quote.expected, outDecimals)), 4)} {outSymbol} <Usd v={toUsd(quote.expected, outDecimals, outUsd)} /></>}
                 />
                 <Pair
                   label="At least"
-                  value={`${num(Number(formatUnits(quote.minOut, outDecimals)), 4)} ${outSymbol}`}
+                  value={<>{num(Number(formatUnits(quote.minOut, outDecimals)), 4)} {outSymbol} <Usd v={toUsd(quote.minOut, outDecimals, outUsd)} /></>}
                 />
               </dl>
 
@@ -237,10 +311,12 @@ export function Trade() {
 
       <Notice kind="calm">
         <p>
-          One hop. HIGHER sits directly in the Uniswap V2 pair — there is no
-          wrapper — and the tax lives in the token itself, which is why the
-          router's own quote has to be corrected for it before you see a
-          number. Your approval goes to the router.
+          HIGHER sits directly in a Uniswap V2 pair against SPY, and the tax
+          lives in the token itself, which is why the router's own quote has to
+          be corrected for it before you see a number. Paying with ETH routes
+          ETH → USDG → SPY → HIGHER through three pools in one transaction
+          (0.3% each, no approval needed); selling for ETH is the same route
+          backwards. Dollar values are spot prices from those pools.
         </p>
         <p className="muted">
           On a buy the pair sends the full amount and the token taxes it on the
@@ -251,4 +327,10 @@ export function Trade() {
       </Notice>
     </div>
   )
+}
+
+/** Small grey "≈ $x" after a token amount. */
+function Usd({ v }: { v: number | undefined }) {
+  const text = usd(v)
+  return text ? <span className="muted">({text})</span> : null
 }

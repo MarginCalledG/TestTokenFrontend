@@ -39,6 +39,10 @@ const MAINNET: Record<string, Address> = {
   pair: '0x11A92E6D1059d58a6A70EE3F1B01Fa36980fF57f',
   spy: '0x117cc2133c37B721F49dE2A7a74833232B3B4C0C',
   usdg: USDG_MAINNET,
+  weth: WETH_MAINNET,
+  /** Uniswap v2 SPY/USDG and WETH/USDG — the ETH route and the $ prices go through these. */
+  spyUsdgPair: '0xE59087890579AfEC2CC316c7Db230B2d0945569F',
+  wethUsdgPair: '0x8803c117ccae7B5146297876c2A25DF135141C4d',
 }
 const pick = (key: string, name: keyof typeof MAINNET) => env(key) ?? (isTestnet ? null : MAINNET[name])
 
@@ -53,6 +57,9 @@ export const addresses = {
   pair: pick('VITE_PAIR_ADDRESS', 'pair'),
   spy: pick('VITE_SPY_ADDRESS', 'spy'),
   usdg: pick('VITE_USDG_ADDRESS', 'usdg'),
+  weth: pick('VITE_WETH_ADDRESS', 'weth'),
+  spyUsdgPair: pick('VITE_SPY_USDG_PAIR', 'spyUsdgPair'),
+  wethUsdgPair: pick('VITE_WETH_USDG_PAIR', 'wethUsdgPair'),
 } as const
 
 /**
