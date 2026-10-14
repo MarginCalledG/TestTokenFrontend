@@ -84,8 +84,9 @@ export const MAX_AGENTS_PER_WALLET = 10
 export const TAX = {
   baseBps: 400,
   maxSellBps: 800,
-  maxBuyBps: 800,
-  floorBps: 100,
+  /** Buys are flat at baseBps outside the launch hour (oracle since 14 Oct 2026). */
+  maxBuyBps: 400,
+  floorBps: 400,
 }
 
 /** Melt rate bounds in bps/day. */

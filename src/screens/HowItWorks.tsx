@@ -98,12 +98,13 @@ export function HowItWorks() {
 
       <Field title="Trading tax">
         <p>
-          Buying and selling against the pool is taxed. The base rate is{' '}
-          {bpsToPct(TAX.baseBps)}%. It rises with the size of your trade relative
-          to the pool and when the price is being pushed away from its 15-minute
-          average, up to {bpsToPct(TAX.maxSellBps)}% — and buys get cheaper (down to{' '}
-          {bpsToPct(TAX.floorBps)}%) while the price is below that average. The
-          first hour after launch is a flat {bpsToPct(TAX.maxSellBps)}%. The exact
+          Buying and selling against the pool is taxed. Buys pay a flat{' '}
+          {bpsToPct(TAX.baseBps)}%, whatever the size. Sells start at{' '}
+          {bpsToPct(TAX.baseBps)}% and rise with the size of the sale relative to
+          the pool and while the price is below its 15-minute average, up to{' '}
+          {bpsToPct(TAX.maxSellBps)}%. The first hour after launch was a flat{' '}
+          {bpsToPct(TAX.maxSellBps)}% both ways. The tax lives in the token, so the
+          same rates apply on Uniswap, in trading bots and here. The exact
           rate for your trade size is shown on the trade screen before you confirm.
         </p>
         <p>
