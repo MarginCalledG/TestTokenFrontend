@@ -39,7 +39,7 @@ const APPS: AppDef[] = [
   { id: 'cayman', title: 'Cayman Islands', label: 'Cayman Islands', icon: IslandIcon, w: 760, h: 520 },
   { id: 'agents', title: 'IRS Agents', label: 'IRS Agents', icon: AgentIcon, w: 820, h: 560 },
   { id: 'trade', title: 'Trade', label: 'Trade', icon: TradeIcon, w: 660, h: 460 },
-  { id: 'dashboard', title: 'Dashboard', label: 'Dashboard', icon: MonitorIcon, w: 700, h: 440 },
+  { id: 'dashboard', title: 'Dashboard', label: 'Dashboard', icon: MonitorIcon, w: 900, h: 640 },
   { id: 'how', title: 'Read me first', label: 'Read me first', icon: HelpIcon, w: 640, h: 520 },
   {
     id: 'docs',
