@@ -8,6 +8,7 @@ import { MintStatus } from '../components/MintStatus'
 import { useHigherStats } from '../hooks/useHigher'
 import { useEpoch } from '../hooks/useEpoch'
 import { useUsdPrices } from '../hooks/useUsdPrices'
+import { useHistory } from '../hooks/useHistory'
 import { bpsToPct, halfLifeDays } from '../lib/melt'
 import { duration, pct } from '../lib/format'
 import { MELT } from '../config/protocol'
@@ -58,6 +59,7 @@ export function Dashboard() {
   const { rateBps, totalSupply } = useHigherStats()
   const { epoch, secondsRemaining } = useEpoch()
   const prices = useUsdPrices()
+  const { data: hist } = useHistory()
   const px = prices.higher
 
   const on = isConfigured('higher', 'cayman', 'irsAgent', 'pair', 'seed') && !DEMO
@@ -192,6 +194,7 @@ export function Dashboard() {
             <Pair label="Price" value={price(px)} />
             <Pair label="Market cap" value={dollars(supply !== undefined && px !== undefined ? supply * px : undefined)} />
             <Pair label="Pool liquidity" value={dollars(liquidity)} />
+            <Pair label="Holders" value={hist?.holders ?? '—'} />
             <Pair label="SPY / ETH" value={`${dollars(prices.spy)} / ${dollars(prices.eth)}`} />
           </dl>
           <p className="muted" style={{ marginTop: '0.75rem' }}>

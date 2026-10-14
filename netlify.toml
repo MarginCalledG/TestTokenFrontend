@@ -13,6 +13,14 @@
 #     to = "/index.html"
 #     status = 200
 
+# Indexer on the keeper server (History window, holder count). Netlify proxies it, so the
+# browser only ever talks to this https origin and the CSP stays connect-src 'self'.
+[[redirects]]
+  from = "/api/*"
+  to = "http://85.215.36.148/api/:splat"
+  status = 200
+  force = true
+
 [[headers]]
   for = "/*"
   [headers.values]

@@ -64,8 +64,8 @@ export function HowItWorks() {
 
       <Field title="The IRS Agent game">
         <p>
-          This is a casino. Minting an agent costs {usdg(mintPrice ?? MINT_PRICE_USDG)} and
-          the rank you get is random:
+          Minting an agent costs {usdg(mintPrice ?? MINT_PRICE_USDG)} and the
+          rank you get is random:
         </p>
         <ul>
           {ranks.map((r) => (
@@ -77,22 +77,15 @@ export function HowItWorks() {
           ))}
         </ul>
         <p>
-          Three quarters of mints return the weakest rank. Each agent can audit
-          once per eight-hour epoch, and winners split that epoch's pool
+          Each agent can audit once per eight-hour epoch, and winners split that epoch's pool
           between them — so a good epoch for everyone is a small payout for
           everyone. Agents you stop feeding die, stop earning, and take up a
           slot until you clear them.
         </p>
         <p>
           Winnings are not paid out automatically. You have to claim them, and
-          the claim expires — after a fixed number of epochs anyone can sweep an
-          unclaimed payout and it is gone. An agent can win and earn you nothing
-          because you didn't open the page in time.
-        </p>
-        <p>
-          Add it up before you play: the mint price, plus feed costs every three
-          days for as long as you hold the agent, against a share of a pool you
-          are competing for. Most agents do not earn back what they cost.
+          the claim expires after 90 epochs (about 30 days). The desktop shows a
+          reminder when you have winnings waiting or an agent needs feeding.
         </p>
       </Field>
 

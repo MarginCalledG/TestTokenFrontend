@@ -1,4 +1,8 @@
-import { useAccount, useConnect, useDisconnect } from 'wagmi'
+import { formatEther, formatUnits } from 'viem'
+import { useAccount, useBalance, useConnect, useDisconnect, useReadContract } from 'wagmi'
+import { erc20Abi } from '../abi'
+import { addresses } from '../config/addresses'
+import { usd, useUsdPrices } from '../hooks/useUsdPrices'
 import { Field, Notice, Pair } from '../components/ui'
 import { useMeltingBalance } from '../hooks/useHigher'
 import { useLockPositions } from '../hooks/useCayman'
@@ -20,6 +24,17 @@ export function Home({ go }: { go: (screen: string) => void }) {
   const shownAddress = address ?? (DEMO ? demo.account : undefined)
   const wrongChain = isConnected && chainId !== activeChain.id
   const protectedTotal = positions.reduce((sum, p) => sum + p.amount, 0n)
+  const lockedNum = Number(formatUnits(protectedTotal, decimals))
+  const prices = useUsdPrices()
+  const px = prices.higher
+  const { data: ethBal } = useBalance({ address, query: { enabled: !!address, refetchInterval: 15_000 } })
+  const { data: usdgBal } = useReadContract({
+    address: addresses.usdg ?? undefined,
+    abi: erc20Abi,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+    query: { enabled: !!address && !!addresses.usdg, refetchInterval: 15_000 },
+  })
 
   if (!shown) {
     return (
@@ -56,8 +71,8 @@ export function Home({ go }: { go: (screen: string) => void }) {
           <p>
             HIGHER shrinks. Every wallet's balance falls continuously, between
             4.2% and 6.9% per day, whether or not you do anything. Locking it in
-            the Cayman Islands slows or stops that. The IRS Agent game is a
-            casino and most agents lose money.
+            the Cayman Islands slows that, and the IRS Agents compete for what
+            locked positions still lose.
           </p>
           <button className="btn secondary" onClick={() => go('how')}>
             Read how this works
@@ -97,12 +112,21 @@ export function Home({ go }: { go: (screen: string) => void }) {
             <Pair label="Network" value={activeChain.name} />
             <Pair
               label="Unlocked HIGHER"
-              value={live === undefined ? '—' : num(live, 4)}
+              value={<>{live === undefined ? '—' : num(live, 4)} <Usd v={live === undefined ? undefined : live * (px ?? NaN)} /></>}
             />
             <Pair
               label="Locked offshore"
-              value={token(protectedTotal, decimals)}
+              value={<>{token(protectedTotal, decimals)} <Usd v={lockedNum * (px ?? NaN)} /></>}
             />
+            <Pair
+              label={<strong>Total value</strong>}
+              value={<strong>{live === undefined || px === undefined ? '—' : usd((live + lockedNum) * px).replace('≈ ', '')}</strong>}
+            />
+            <Pair
+              label="ETH"
+              value={<>{ethBal === undefined ? '—' : num(Number(formatEther(ethBal.value)), 4)} <Usd v={ethBal === undefined || prices.eth === undefined ? undefined : Number(formatEther(ethBal.value)) * prices.eth} /></>}
+            />
+            <Pair label="USDG" value={usdgBal === undefined ? '—' : `$${num(Number(formatUnits(usdgBal as bigint, 6)), 2)}`} />
           </dl>
           <div className="btn-row">
             <button className="btn secondary" onClick={() => disconnect()}>
@@ -121,7 +145,8 @@ export function Home({ go }: { go: (screen: string) => void }) {
                   label="Next hour"
                   value={
                     <span className="loss">
-                      −{num(meltOver(live, 3600, rateBps), 4)}
+                      −{num(meltOver(live, 3600, rateBps), 4)}{' '}
+                      <Usd v={px === undefined ? undefined : meltOver(live, 3600, rateBps) * px} />
                     </span>
                   }
                 />
@@ -129,7 +154,8 @@ export function Home({ go }: { go: (screen: string) => void }) {
                   label="Next day"
                   value={
                     <span className="loss">
-                      −{num(meltOver(live, 86_400, rateBps), 4)}
+                      −{num(meltOver(live, 86_400, rateBps), 4)}{' '}
+                      <Usd v={px === undefined ? undefined : meltOver(live, 86_400, rateBps) * px} />
                     </span>
                   }
                 />
@@ -137,7 +163,8 @@ export function Home({ go }: { go: (screen: string) => void }) {
                   label="Next week"
                   value={
                     <span className="loss">
-                      −{num(meltOver(live, 7 * 86_400, rateBps), 4)}
+                      −{num(meltOver(live, 7 * 86_400, rateBps), 4)}{' '}
+                      <Usd v={px === undefined ? undefined : meltOver(live, 7 * 86_400, rateBps) * px} />
                     </span>
                   }
                 />
@@ -179,4 +206,10 @@ export function Home({ go }: { go: (screen: string) => void }) {
       </Field>
     </div>
   )
+}
+
+/** Grey "(≈ $x)" after an amount. */
+function Usd({ v }: { v: number | undefined }) {
+  const t = usd(v)
+  return t ? <span className="muted">({t})</span> : null
 }

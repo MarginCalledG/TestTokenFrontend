@@ -145,3 +145,33 @@ export function StartIcon(p: Props) {
     </Grid>
   )
 }
+
+/** Contracts — a sheet with a seal. */
+export function ContractIcon(p: Props) {
+  return (
+    <Grid {...p}>
+      <rect x="2" y="1" width="11" height="14" fill="#000" />
+      <rect x="3" y="2" width="9" height="12" fill="#fff" />
+      <rect x="4" y="4" width="7" height="1" fill="#000080" />
+      <rect x="4" y="6" width="7" height="1" fill="#000080" />
+      <rect x="4" y="8" width="4" height="1" fill="#000080" />
+      <rect x="9" y="10" width="5" height="5" fill="#000" />
+      <rect x="10" y="11" width="3" height="3" fill="#c00000" />
+    </Grid>
+  )
+}
+
+/** History — a line chart on a pane. */
+export function ChartIcon(p: Props) {
+  return (
+    <Grid {...p}>
+      <rect x="1" y="2" width="14" height="12" fill="#000" />
+      <rect x="2" y="3" width="12" height="10" fill="#fff" />
+      <rect x="3" y="10" width="2" height="2" fill="#008000" />
+      <rect x="5" y="8" width="2" height="2" fill="#008000" />
+      <rect x="7" y="9" width="2" height="2" fill="#008000" />
+      <rect x="9" y="6" width="2" height="2" fill="#008000" />
+      <rect x="11" y="4" width="2" height="2" fill="#008000" />
+    </Grid>
+  )
+}

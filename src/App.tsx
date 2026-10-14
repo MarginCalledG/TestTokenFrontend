@@ -3,6 +3,8 @@ import { Win, type WindowChrome } from './components/win/Win'
 import { Taskbar } from './components/win/Taskbar'
 import {
   AgentIcon,
+  ChartIcon,
+  ContractIcon,
   HelpIcon,
   IslandIcon,
   MonitorIcon,
@@ -21,6 +23,9 @@ import { activeChain, isTestnet } from './config/chains'
 import { missing } from './config/addresses'
 import { DEMO } from './config/demo'
 import { ChainGuard } from './components/ChainGuard'
+import { Reminders } from './components/Reminders'
+import { Contracts } from './screens/Contracts'
+import { History } from './screens/History'
 
 type AppDef = {
   id: string
@@ -40,6 +45,8 @@ const APPS: AppDef[] = [
   { id: 'agents', title: 'IRS Agents', label: 'IRS Agents', icon: AgentIcon, w: 820, h: 560 },
   { id: 'trade', title: 'Trade', label: 'Trade', icon: TradeIcon, w: 660, h: 460 },
   { id: 'dashboard', title: 'Dashboard', label: 'Dashboard', icon: MonitorIcon, w: 900, h: 640 },
+  { id: 'history', title: 'History', label: 'History', icon: ChartIcon, w: 900, h: 640 },
+  { id: 'contracts', title: 'Contracts & links', label: 'Contracts', icon: ContractIcon, w: 720, h: 560 },
   { id: 'how', title: 'Read me first', label: 'Read me first', icon: HelpIcon, w: 640, h: 520 },
   {
     id: 'docs',
@@ -156,6 +163,10 @@ export default function App() {
         return <Agents />
       case 'dashboard':
         return <Dashboard />
+      case 'contracts':
+        return <Contracts />
+      case 'history':
+        return <History />
       case 'how':
         return <HowItWorks />
       case 'docs':
@@ -220,6 +231,7 @@ export default function App() {
         ))}
       </div>
 
+      <Reminders open={open} />
       <Taskbar
         windows={windows}
         activeId={activeId}

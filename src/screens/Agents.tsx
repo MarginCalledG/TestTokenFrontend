@@ -128,14 +128,13 @@ export function Agents() {
 
       <TxLine state={tx.state} onDismiss={tx.reset} />
 
-      <Notice kind="warn">
+      <Notice kind="calm">
         <p>
-          This is gambling. Minting costs {usdg(mintPrice)} and three out
-          of four agents come back Junior, which wins its audit 30% of the time
-          and takes the smallest share when it does. Agents also cost roughly{' '}
-          {usdg(expectedFeedPer3Days)} every three days to keep alive, forever.
-          Most agents lose money over their lifetime. A few win. Very few win
-          big.
+          Mint an agent for {usdg(mintPrice)}, and its rank is drawn at random
+          when the epoch ends. Every 8 hours each agent can audit once; the
+          winners split the audit pool by rank weight. Feed your agent every
+          three days (about {usdg(expectedFeedPer3Days)} on average) to keep it
+          in the game, and claim your winnings within 90 epochs.
         </p>
       </Notice>
 
@@ -187,8 +186,7 @@ export function Agents() {
           ) : null}
           <p className="muted" style={{ marginTop: '0.5rem' }}>
             {living.length} of {walletCap} agent slots used. Rank is
-            random and revealed when the current 8-hour epoch ends — you are buying a
-            75% chance of the weakest rank.
+            random and revealed when the current 8-hour epoch ends.
           </p>
         </Field>
 
