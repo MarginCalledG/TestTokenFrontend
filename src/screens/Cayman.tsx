@@ -221,7 +221,12 @@ export function Cayman() {
                   </button>
                   <button
                     className="btn secondary"
-                    disabled={!pos?.hasPosition || tx.busy}
+                    disabled={!pos?.hasPosition || tx.busy || (!pos?.isExpired && remaining > 0)}
+                    title={
+                      pos?.hasPosition && !pos.isExpired && remaining > 0
+                        ? 'Relock opens when this lock has run out'
+                        : undefined
+                    }
                     onClick={() => void relock(tier.id, tier.name, feeOnChain)}
                   >
                     Relock
@@ -246,6 +251,16 @@ export function Cayman() {
                   Locking costs {usdg(tier.feeUsdg)} {pay.useEth ? '(paid in ETH)' : 'in USDG'} plus gas.
                   Relocking costs the fee again.
                 </p>
+                {pos?.hasPosition && !pos.isExpired && remaining > 0 ? (
+                  <p className="muted" style={{ marginTop: '0.25rem' }}>
+                    Relock and Withdraw open on{' '}
+                    {new Date(pos.unlockAt * 1000).toLocaleString(undefined, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                    . Adding more HIGHER to this lock restarts its timer from now.
+                  </p>
+                ) : null}
               </Field>
             )
           })}
